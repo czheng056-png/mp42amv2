@@ -1,0 +1,750 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MP4 转 AMV 转换器 - 纯前端本地处理</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+            background: #f5f7fa;
+            color: #1e2b3c;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 24px 16px 60px;
+        }
+        .container { width: 100%; max-width: 860px; }
+        header { text-align: center; margin-bottom: 28px; }
+        header h1 { font-size: 26px; font-weight: 600; letter-spacing: -0.3px; color: #0b1a2a; margin-bottom: 6px; }
+        header p { font-size: 14px; color: #6b7c8e; line-height: 1.6; }
+        .badge {
+            display: inline-block; background: #e8f0fe; color: #1a5fb4;
+            font-size: 12px; font-weight: 500; padding: 4px 12px;
+            border-radius: 100px; margin-bottom: 14px;
+        }
+        .card {
+            background: #fff; border-radius: 16px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            padding: 28px 24px; margin-bottom: 20px;
+            border: 1px solid #e9edf2;
+        }
+        .card-title {
+            font-size: 16px; font-weight: 600; color: #0b1a2a;
+            margin-bottom: 18px; display: flex; align-items: center; gap: 8px;
+        }
+        .card-title .dot { width: 8px; height: 8px; border-radius: 50%; background: #1a73e8; flex-shrink: 0; }
+        .upload-area {
+            border: 2px dashed #c5d0dc; border-radius: 14px;
+            padding: 40px 20px; text-align: center;
+            cursor: pointer; transition: all 0.2s ease;
+            background: #fafbfd; position: relative;
+        }
+        .upload-area:hover, .upload-area.dragover { border-color: #1a73e8; background: #f0f6ff; }
+        .upload-area input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+        .upload-icon { font-size: 40px; margin-bottom: 10px; line-height: 1; }
+        .upload-text { font-size: 15px; font-weight: 500; color: #1a2b3c; margin-bottom: 4px; }
+        .upload-hint { font-size: 13px; color: #8a9aa8; }
+        .file-info {
+            display: none; margin-top: 16px; padding: 14px 18px;
+            background: #f0f6ff; border-radius: 10px;
+            border: 1px solid #d6e4f5; font-size: 14px;
+            color: #1a5fb4; word-break: break-all;
+        }
+        .file-info.show { display: block; }
+        .file-info strong { color: #0b1a2a; }
+        .settings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 18px;
+        }
+        .setting-item { display: flex; flex-direction: column; gap: 6px; }
+        .setting-item label {
+            font-size: 13px; font-weight: 500; color: #3a4d60;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .setting-item label .tooltip-icon {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 16px; height: 16px; border-radius: 50%;
+            background: #dde4eb; color: #5a6d80; font-size: 10px;
+            font-weight: 700; cursor: help; position: relative;
+        }
+        .setting-item label .tooltip-icon:hover::after {
+            content: attr(data-tip); position: absolute;
+            bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+            background: #1e2b3c; color: #fff; font-size: 12px;
+            font-weight: 400; padding: 6px 10px; border-radius: 6px;
+            white-space: nowrap; z-index: 10; pointer-events: none;
+        }
+        select, input[type="number"] {
+            width: 100%; padding: 10px 12px;
+            border: 1px solid #d0d8e0; border-radius: 8px;
+            font-size: 14px; color: #1e2b3c; background: #fff;
+            outline: none; transition: border-color 0.15s; font-family: inherit;
+        }
+        select:focus, input[type="number"]:focus {
+            border-color: #1a73e8;
+            box-shadow: 0 0 0 3px rgba(26,115,232,0.1);
+        }
+        .custom-row { display: flex; gap: 10px; align-items: center; }
+        .custom-row input { flex: 1; }
+        .custom-row span { color: #8a9aa8; font-size: 13px; flex-shrink: 0; }
+        .btn {
+            display: inline-flex; align-items: center; justify-content: center;
+            gap: 8px; padding: 12px 28px; border: none;
+            border-radius: 10px; font-size: 15px; font-weight: 600;
+            cursor: pointer; transition: all 0.18s ease;
+            font-family: inherit; text-decoration: none;
+        }
+        .btn-primary { background: #1a73e8; color: #fff; width: 100%; }
+        .btn-primary:hover:not(:disabled) {
+            background: #1557b0;
+            box-shadow: 0 4px 14px rgba(26,115,232,0.3);
+        }
+        .btn-primary:disabled { background: #b8c9dc; cursor: not-allowed; opacity: 0.7; }
+        .btn-download {
+            background: #0d8a4e; color: #fff; width: 100%; margin-top: 12px;
+        }
+        .btn-download:hover {
+            background: #0a6e3e;
+            box-shadow: 0 4px 14px rgba(13,138,78,0.3);
+        }
+        .progress-wrap { display: none; margin-top: 20px; }
+        .progress-wrap.show { display: block; }
+        .progress-bar-bg {
+            width: 100%; height: 8px; background: #e9edf2;
+            border-radius: 100px; overflow: hidden;
+        }
+        .progress-bar-fill {
+            height: 100%; width: 0%;
+            background: linear-gradient(90deg, #1a73e8, #4a9eff);
+            border-radius: 100px; transition: width 0.3s ease;
+        }
+        .progress-text {
+            font-size: 13px; color: #6b7c8e;
+            margin-top: 8px; text-align: center;
+        }
+        .log-area {
+            margin-top: 16px; background: #0d1b2a; color: #a8c8e8;
+            font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+            font-size: 12px; padding: 14px 16px; border-radius: 10px;
+            max-height: 240px; overflow-y: auto; line-height: 1.7;
+            display: none; white-space: pre-wrap; word-break: break-all;
+        }
+        .log-area.show { display: block; }
+        .result-area {
+            display: none; margin-top: 20px; padding: 18px;
+            background: #e8f5e9; border-radius: 12px;
+            border: 1px solid #b7e0c0; text-align: center;
+        }
+        .result-area.show { display: block; }
+        .result-area .success-icon { font-size: 32px; margin-bottom: 6px; }
+        .result-area p { font-size: 14px; color: #1b5e20; margin-bottom: 4px; }
+        .result-area .file-size { font-size: 13px; color: #4a7a54; }
+        footer {
+            margin-top: 40px; text-align: center;
+            font-size: 12px; color: #9aabba; line-height: 1.7;
+        }
+        .config-note {
+            font-size: 12px; color: #8a9aa8;
+            margin-top: 6px; line-height: 1.5;
+        }
+        .warn-box {
+            display: none;
+            margin-top: 12px; padding: 12px 16px;
+            background: #fff8e1; border: 1px solid #ffe082;
+            border-radius: 10px; font-size: 13px; color: #7a5c00;
+            line-height: 1.6;
+        }
+        .warn-box.show { display: block; }
+        @media (max-width: 600px) {
+            .card { padding: 20px 16px; }
+            header h1 { font-size: 21px; }
+            .settings-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <div class="badge">🔒 纯本地处理 · 文件不离开设备</div>
+        <h1>MP4 转 AMV</h1>
+        <p>将 MP4 视频转换为老式 MP3/MP4 播放器支持的 AMV 格式，所有处理在浏览器本地完成。</p>
+    </header>
+
+    <div class="card">
+        <div class="card-title"><span class="dot"></span> 选择 MP4 文件</div>
+        <div class="upload-area" id="uploadArea">
+            <input type="file" id="fileInput" accept="video/mp4,video/*">
+            <div class="upload-icon">📁</div>
+            <div class="upload-text">点击选择或拖拽 MP4 文件到此处</div>
+            <div class="upload-hint">支持 MP4 / MOV / AVI 等常见格式</div>
+        </div>
+        <div class="file-info" id="fileInfo"></div>
+    </div>
+
+    <div class="card">
+        <div class="card-title"><span class="dot"></span> 自定义转换参数</div>
+        <div class="settings-grid">
+            <div class="setting-item">
+                <label>分辨率 <span class="tooltip-icon" data-tip="AMV 支持 96x96 到 320x240">?</span></label>
+                <select id="resolutionSelect">
+                    <option value="160x120">160×120（最通用）</option>
+                    <option value="176x144">176×144</option>
+                    <option value="208x176">208×176</option>
+                    <option value="220x176">220×176</option>
+                    <option value="240x180">240×180</option>
+                    <option value="320x240">320×240（最高）</option>
+                    <option value="custom">自定义…</option>
+                </select>
+                <div class="custom-row" id="customResRow" style="display:none;">
+                    <input type="number" id="customWidth" placeholder="宽" min="96" max="320" value="160">
+                    <span>×</span>
+                    <input type="number" id="customHeight" placeholder="高" min="96" max="240" value="120">
+                </div>
+            </div>
+            <div class="setting-item">
+                <label>帧率 (FPS) <span class="tooltip-icon" data-tip="建议 12-18 FPS">?</span></label>
+                <select id="fpsSelect">
+                    <option value="12">12 FPS（流畅）</option>
+                    <option value="15" selected>15 FPS（推荐）</option>
+                    <option value="18">18 FPS</option>
+                    <option value="20">20 FPS</option>
+                    <option value="25">25 FPS（标准）</option>
+                </select>
+            </div>
+            <div class="setting-item">
+                <label>音频采样率 <span class="tooltip-icon" data-tip="标准 22050 Hz">?</span></label>
+                <select id="sampleRateSelect">
+                    <option value="22050" selected>22050 Hz（标准）</option>
+                    <option value="16000">16000 Hz</option>
+                    <option value="11025">11025 Hz</option>
+                </select>
+            </div>
+            <div class="setting-item">
+                <label>视频质量 <span class="tooltip-icon" data-tip="qmin/qmax 越小质量越好">?</span></label>
+                <select id="qualitySelect">
+                    <option value="2">高（文件较大）</option>
+                    <option value="3" selected>标准（推荐）</option>
+                    <option value="5">低（文件较小）</option>
+                </select>
+            </div>
+            <div class="setting-item">
+                <label>音频比特率 <span class="tooltip-icon" data-tip="AMV 常用 40400 bps">?</span></label>
+                <select id="audioBitrateSelect">
+                    <option value="40400" selected>40400 bps（标准）</option>
+                    <option value="32000">32000 bps</option>
+                    <option value="48000">48000 bps</option>
+                    <option value="64000">64000 bps</option>
+                </select>
+            </div>
+            <div class="setting-item">
+                <label>Block Size <span class="tooltip-icon" data-tip="自动计算 = 采样率 / 帧率">?</span></label>
+                <input type="number" id="blockSizeInput" value="1470" min="32" max="8192" readonly
+                       style="background:#f5f7fa;color:#5a6d80;cursor:not-allowed;">
+                <div class="config-note" id="blockSizeNote">自动计算值</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <button class="btn btn-primary" id="convertBtn" disabled>
+            <span id="convertBtnText">开始转换</span>
+        </button>
+        <div class="progress-wrap" id="progressWrap">
+            <div class="progress-bar-bg">
+                <div class="progress-bar-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-text" id="progressText">准备中…</div>
+        </div>
+        <div class="log-area" id="logArea"></div>
+        <div class="warn-box" id="warnBox"></div>
+        <div class="result-area" id="resultArea">
+            <div class="success-icon">✅</div>
+            <p><strong>转换完成！</strong></p>
+            <p class="file-size" id="resultFileSize"></p>
+            <a class="btn btn-download" id="downloadBtn" download="output.amv">⬇ 下载 AMV 文件</a>
+        </div>
+    </div>
+
+    <footer>
+        <p>所有转换在您的浏览器中完成，文件不会上传到任何服务器。</p>
+        <p>基于 ffmpeg.wasm 构建 · 首次使用需加载约 30MB 核心文件</p>
+    </footer>
+</div>
+
+<script>
+(function () {
+    "use strict";
+
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+    const fileInfo = document.getElementById('fileInfo');
+    const convertBtn = document.getElementById('convertBtn');
+    const convertBtnText = document.getElementById('convertBtnText');
+    const progressWrap = document.getElementById('progressWrap');
+    const progressFill = document.getElementById('progressFill');
+    const progressText = document.getElementById('progressText');
+    const logArea = document.getElementById('logArea');
+    const warnBox = document.getElementById('warnBox');
+    const resultArea = document.getElementById('resultArea');
+    const resultFileSize = document.getElementById('resultFileSize');
+    const downloadBtn = document.getElementById('downloadBtn');
+
+    const resolutionSelect = document.getElementById('resolutionSelect');
+    const customResRow = document.getElementById('customResRow');
+    const customWidth = document.getElementById('customWidth');
+    const customHeight = document.getElementById('customHeight');
+    const fpsSelect = document.getElementById('fpsSelect');
+    const sampleRateSelect = document.getElementById('sampleRateSelect');
+    const qualitySelect = document.getElementById('qualitySelect');
+    const audioBitrateSelect = document.getElementById('audioBitrateSelect');
+    const blockSizeInput = document.getElementById('blockSizeInput');
+    const blockSizeNote = document.getElementById('blockSizeNote');
+
+    let selectedFile = null;
+    let ffmpeg = null;
+    let ffmpegLoadPromise = null;
+    let umdLoadPromise = null;
+    let isConverting = false;
+    let outputBlobUrl = null;
+
+    // ==================== 核心文件路径 ====================
+    // 优先使用同源 /ffmpeg/ 目录（你上传的文件）
+    const SAME_ORIGIN_BASE = 'ffmpeg/';
+    // 回退用的 CDN（仅在本地文件缺失时使用）
+    const CDN_FALLBACK = 'https://cdn.jsdelivr.net/npm';
+
+    const TIMEOUT_SCRIPT    = 15000;
+    const TIMEOUT_CORE_JS   = 60000;
+    const TIMEOUT_CORE_WASM = 240000;
+    const TIMEOUT_WORKER    = 60000;
+
+    function checkCrossOriginIsolated() {
+        if (typeof crossOriginIsolated !== 'undefined' && crossOriginIsolated) return;
+        warnBox.innerHTML =
+            '⚠️ <strong>未启用跨域隔离</strong>（crossOriginIsolated = false）。' +
+            '转换仍可运行，但可能回退到单线程模式，速度较慢。<br>' +
+            '如需加速：请确认部署目录下存在 <code>_headers</code> 文件，内容包含 COOP/COEP 响应头。';
+        warnBox.classList.add('show');
+    }
+
+    function log(msg) {
+        logArea.classList.add('show');
+        logArea.textContent += msg + '\n';
+        logArea.scrollTop = logArea.scrollHeight;
+    }
+    function clearLog() {
+        logArea.textContent = '';
+        logArea.classList.remove('show');
+    }
+
+    function setProgress(ratio, text) {
+        progressWrap.classList.add('show');
+        progressFill.style.width = Math.round(ratio * 100) + '%';
+        if (text) progressText.textContent = text;
+    }
+    function resetProgress() {
+        progressWrap.classList.remove('show');
+        progressFill.style.width = '0%';
+        progressText.textContent = '准备中…';
+        progressText.style.color = '';
+    }
+
+    function resetResult() {
+        resultArea.classList.remove('show');
+        if (outputBlobUrl) {
+            URL.revokeObjectURL(outputBlobUrl);
+            outputBlobUrl = null;
+        }
+    }
+
+    function getResolution() {
+        if (resolutionSelect.value === 'custom') {
+            let w = parseInt(customWidth.value) || 160;
+            let h = parseInt(customHeight.value) || 120;
+            w = Math.max(96, Math.min(320, w));
+            h = Math.max(96, Math.min(240, h));
+            if (w % 2 !== 0) w += 1;
+            if (h % 2 !== 0) h += 1;
+            return w + 'x' + h;
+        }
+        return resolutionSelect.value;
+    }
+
+    function updateBlockSize() {
+        const fps = parseInt(fpsSelect.value) || 15;
+        const sr = parseInt(sampleRateSelect.value) || 22050;
+        let bs = Math.round(sr / fps);
+        bs = Math.max(32, Math.min(8192, bs));
+        blockSizeInput.value = bs;
+        blockSizeNote.textContent = '自动计算：' + sr + ' / ' + fps + ' = ' + bs;
+    }
+
+    // ==================== 加载 UMD 主库（优先同源） ====================
+    function loadFFmpegUMD() {
+        if (window.FFmpegWASM && window.FFmpegWASM.FFmpeg) return Promise.resolve();
+        if (umdLoadPromise) return umdLoadPromise;
+
+        umdLoadPromise = (async function () {
+            // 1. 先尝试同源
+            const sameOriginURL = SAME_ORIGIN_BASE + 'ffmpeg.min.js';
+            try {
+                log('尝试加载同源 UMD：' + sameOriginURL);
+                await loadScript(sameOriginURL, TIMEOUT_SCRIPT);
+                if (window.FFmpegWASM && window.FFmpegWASM.FFmpeg) {
+                    log('✅ 同源 UMD 脚本就绪');
+                    return;
+                }
+            } catch (e) {
+                log('⚠️ 同源 UMD 不可用，回退 CDN…');
+            }
+
+            // 2. 回退 CDN
+            const cdnURL = CDN_FALLBACK + '/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.min.js';
+            log('尝试加载 CDN UMD：' + cdnURL);
+            await loadScript(cdnURL, TIMEOUT_SCRIPT);
+            if (!window.FFmpegWASM || !window.FFmpegWASM.FFmpeg) {
+                throw new Error('UMD 脚本加载后未挂载 FFmpegWASM');
+            }
+            log('✅ CDN UMD 脚本就绪');
+        })();
+
+        umdLoadPromise.catch(function () { umdLoadPromise = null; });
+        return umdLoadPromise;
+    }
+
+    function loadScript(url, timeout) {
+        return new Promise(function (resolve, reject) {
+            const s = document.createElement('script');
+            s.src = url;
+            s.async = true;
+            let done = false;
+            const timer = setTimeout(function () {
+                if (done) return;
+                done = true;
+                s.onload = null; s.onerror = null;
+                try { s.remove(); } catch (e) {}
+                reject(new Error('加载超时'));
+            }, timeout);
+            s.onload = function () {
+                if (done) return;
+                done = true; clearTimeout(timer); resolve();
+            };
+            s.onerror = function () {
+                if (done) return;
+                done = true; clearTimeout(timer);
+                try { s.remove(); } catch (e) {}
+                reject(new Error('脚本加载失败'));
+            };
+            document.head.appendChild(s);
+        });
+    }
+
+    // ==================== 初始化 FFmpeg（同源优先） ====================
+    function initFFmpeg() {
+        if (ffmpeg) return Promise.resolve(ffmpeg);
+        if (ffmpegLoadPromise) return ffmpegLoadPromise;
+
+        ffmpegLoadPromise = (async function () {
+            log('[1/4] 加载 FFmpeg 主库…');
+            await loadFFmpegUMD();
+
+            const FFmpeg = window.FFmpegWASM.FFmpeg;
+            const instance = new FFmpeg();
+
+            instance.on('log', function (evt) {
+                const msg = evt && evt.message ? evt.message : '';
+                if (!msg) return;
+                if (
+                    msg.indexOf('Error') !== -1 || msg.indexOf('error') !== -1 ||
+                    msg.indexOf('Invalid') !== -1 || msg.indexOf('Output') !== -1 ||
+                    msg.indexOf('frame=') !== -1 || msg.indexOf('time=') !== -1
+                ) {
+                    log('[ffmpeg] ' + msg.trim());
+                }
+            });
+
+            instance.on('progress', function (evt) {
+                if (!isConverting) return;
+                const p = evt && typeof evt.progress === 'number' ? evt.progress : -1;
+                if (p >= 0 && p <= 1) {
+                    setProgress(0.20 + p * 0.75, '转换中… ' + Math.round(p * 100) + '%');
+                }
+            });
+
+            // -------- 确定各文件 URL（同源优先） --------
+            const origin = location.origin;
+            const sameOriginBase = origin + '/' + SAME_ORIGIN_BASE;
+
+            // 同源路径
+            const sameOriginWorker = sameOriginBase + '814.ffmpeg.js';
+            const sameOriginCoreJs = sameOriginBase + 'ffmpeg-core.js';
+            const sameOriginCoreWasm = sameOriginBase + 'ffmpeg-core.wasm';
+
+            // CDN 回退路径（注意 core 用 esm）
+            const cdnBase = CDN_FALLBACK + '/@ffmpeg';
+            const cdnWorker = cdnBase + '/ffmpeg@0.12.10/dist/umd/814.ffmpeg.js';
+            const cdnCoreJs = cdnBase + '/core@0.12.6/dist/esm/ffmpeg-core.js';
+            const cdnCoreWasm = cdnBase + '/core@0.12.6/dist/esm/ffmpeg-core.wasm';
+
+            // -------- 尝试同源，失败则回退 CDN --------
+            let coreURL, wasmURL, workerURL;
+            let useSameOrigin = true;
+
+            try {
+                log('[2/4] 检查同源核心文件…');
+                // 用 HEAD 请求快速探测同源文件是否存在
+                const headCheck = await Promise.all([
+                    fetch(sameOriginWorker, { method: 'HEAD' }).then(r => r.ok).catch(() => false),
+                    fetch(sameOriginCoreJs, { method: 'HEAD' }).then(r => r.ok).catch(() => false),
+                    fetch(sameOriginCoreWasm, { method: 'HEAD' }).then(r => r.ok).catch(() => false)
+                ]);
+                if (!headCheck[0] || !headCheck[1] || !headCheck[2]) {
+                    useSameOrigin = false;
+                    log('  ⚠️ 同源核心文件不完整，将使用 CDN 回退。请确认 ffmpeg/ 目录已上传。');
+                } else {
+                    log('  ✅ 同源核心文件齐全');
+                    coreURL = sameOriginCoreJs;
+                    wasmURL = sameOriginCoreWasm;
+                    workerURL = sameOriginWorker;
+                }
+            } catch (e) {
+                useSameOrigin = false;
+                log('  ⚠️ 同源探测失败，将使用 CDN 回退。');
+            }
+
+            if (!useSameOrigin) {
+                log('[2/4] 从 CDN 下载核心文件（回退模式）…');
+                setProgress(0.05, '下载核心文件…');
+                coreURL = await fetchToBlobURL(cdnCoreJs, 'text/javascript', TIMEOUT_CORE_JS, '核心 JS');
+                log('  ✅ 核心 JS 就绪');
+                setProgress(0.10, '下载 WASM…');
+                wasmURL = await fetchToBlobURL(cdnCoreWasm, 'application/wasm', TIMEOUT_CORE_WASM, '核心 WASM');
+                log('  ✅ 核心 WASM 就绪');
+                setProgress(0.14, '下载 Worker…');
+                workerURL = await fetchToBlobURL(cdnWorker, 'text/javascript', TIMEOUT_WORKER, 'Worker');
+                log('  ✅ Worker 就绪');
+            }
+
+            // -------- 加载到 FFmpeg 实例 --------
+            log('[4/4] 初始化 FFmpeg 引擎…');
+            setProgress(0.15, '初始化引擎…');
+
+            const loadOptions = {
+                coreURL: coreURL,
+                wasmURL: wasmURL,
+            };
+            if (workerURL) {
+                loadOptions.classWorkerURL = workerURL;
+            }
+
+            await instance.load(loadOptions);
+            log('✅ FFmpeg 初始化完成');
+
+            ffmpeg = instance;
+            return instance;
+        })();
+
+        ffmpegLoadPromise.catch(function () {
+            ffmpegLoadPromise = null;
+            ffmpeg = null;
+        });
+
+        return ffmpegLoadPromise;
+    }
+
+    async function fetchToBlobURL(url, mimeType, timeout, label) {
+        const controller = new AbortController();
+        const timer = setTimeout(function () { controller.abort(); }, timeout);
+        try {
+            const resp = await fetch(url, { signal: controller.signal });
+            if (!resp.ok) throw new Error(label + ' HTTP ' + resp.status);
+            const total = parseInt(resp.headers.get('content-length') || '0', 10);
+            const reader = resp.body.getReader();
+            const chunks = [];
+            let received = 0;
+            let lastLogTime = 0;
+            while (true) {
+                const r = await reader.read();
+                if (r.done) break;
+                chunks.push(r.value);
+                received += r.value.length;
+                const now = Date.now();
+                if (now - lastLogTime > 300) {
+                    lastLogTime = now;
+                    if (total > 0) {
+                        const pct = Math.round(received / total * 100);
+                        const mb = (received / 1024 / 1024).toFixed(1);
+                        const totalMb = (total / 1024 / 1024).toFixed(1);
+                        progressText.textContent = label + ' ' + pct + '%（' + mb + '/' + totalMb + ' MB）';
+                    } else {
+                        progressText.textContent = label + ' 已下载 ' + (received / 1024 / 1024).toFixed(1) + ' MB';
+                    }
+                }
+            }
+            const blob = new Blob(chunks, { type: mimeType });
+            return URL.createObjectURL(blob);
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+
+    function updateConvertBtn() {
+        if (isConverting) {
+            convertBtn.disabled = true;
+            convertBtnText.textContent = '转换中…';
+        } else if (selectedFile) {
+            convertBtn.disabled = false;
+            convertBtnText.textContent = '开始转换';
+        } else {
+            convertBtn.disabled = true;
+            convertBtnText.textContent = '开始转换';
+        }
+    }
+
+    function handleFile(file) {
+        if (!file) return;
+        selectedFile = file;
+        resetResult();
+        clearLog();
+        resetProgress();
+        const mb = (file.size / 1024 / 1024).toFixed(2);
+        fileInfo.innerHTML = '<strong>' + file.name + '</strong> — ' + mb + ' MB';
+        fileInfo.classList.add('show');
+        updateConvertBtn();
+    }
+
+    async function convert() {
+        if (!selectedFile || isConverting) return;
+
+        isConverting = true;
+        updateConvertBtn();
+        resetResult();
+        clearLog();
+        resetProgress();
+        progressText.style.color = '';
+        setProgress(0, '准备中…');
+
+        const res = getResolution();
+        const fps = parseInt(fpsSelect.value) || 15;
+        const sr = parseInt(sampleRateSelect.value) || 22050;
+        const quality = parseInt(qualitySelect.value) || 3;
+        const audioBitrate = audioBitrateSelect.value;
+        const blockSize = blockSizeInput.value;
+
+        log('=== 转换参数 ===');
+        log('  分辨率：' + res);
+        log('  帧率：' + fps + ' fps');
+        log('  采样率：' + sr + ' Hz');
+        log('  质量：' + quality);
+        log('  音频比特率：' + audioBitrate);
+        log('  Block Size：' + blockSize);
+        log('');
+
+        try {
+            const ff = await initFFmpeg();
+
+            setProgress(0.18, '读取文件…');
+            const buf = await selectedFile.arrayBuffer();
+            await ff.writeFile('input.mp4', new Uint8Array(buf));
+            log('输入文件已写入（' + (buf.byteLength / 1024 / 1024).toFixed(2) + ' MB）');
+
+            const args = [
+                '-i', 'input.mp4',
+                '-c:v', 'amv',
+                '-c:a', 'adpcm_ima_amv',
+                '-pix_fmt', 'yuvj420p',
+                '-vstrict', '-1',
+                '-s', res,
+                '-r', String(fps),
+                '-ac', '1',
+                '-ar', String(sr),
+                '-qmin', String(quality),
+                '-qmax', String(quality),
+                '-block_size', String(blockSize),
+                '-b:a', audioBitrate,
+                'output.amv'
+            ];
+            log('执行：ffmpeg ' + args.join(' '));
+            log('');
+
+            setProgress(0.20, '转换中…');
+            await ff.exec(args);
+
+            setProgress(0.96, '生成输出文件…');
+            const data = await ff.readFile('output.amv');
+            const out = data instanceof Uint8Array ? data : new Uint8Array(data);
+            const blob = new Blob([out], { type: 'video/x-amv' });
+            const outMB = (blob.size / 1024 / 1024).toFixed(2);
+
+            if (outputBlobUrl) URL.revokeObjectURL(outputBlobUrl);
+            outputBlobUrl = URL.createObjectURL(blob);
+            downloadBtn.href = outputBlobUrl;
+            downloadBtn.download = selectedFile.name.replace(/\.[^.]+$/, '') + '.amv';
+
+            resultFileSize.textContent = '输出文件大小：' + outMB + ' MB';
+            resultArea.classList.add('show');
+
+            setProgress(1, '转换完成！');
+            log('');
+            log('✅ 转换完成，输出大小：' + outMB + ' MB');
+
+            try {
+                await ff.deleteFile('input.mp4');
+                await ff.deleteFile('output.amv');
+            } catch (e) {}
+
+        } catch (err) {
+            console.error(err);
+            log('');
+            log('❌ 转换失败：' + (err && err.message ? err.message : String(err)));
+            setProgress(0, '转换失败');
+            progressText.textContent = '转换失败，请查看下方日志';
+            progressText.style.color = '#d93025';
+        } finally {
+            isConverting = false;
+            updateConvertBtn();
+        }
+    }
+
+    fileInput.addEventListener('change', function () {
+        if (this.files && this.files[0]) handleFile(this.files[0]);
+    });
+
+    uploadArea.addEventListener('dragover', function (e) {
+        e.preventDefault();
+        this.classList.add('dragover');
+    });
+    uploadArea.addEventListener('dragleave', function () {
+        this.classList.remove('dragover');
+    });
+    uploadArea.addEventListener('drop', function (e) {
+        e.preventDefault();
+        this.classList.remove('dragover');
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+    });
+
+    resolutionSelect.addEventListener('change', function () {
+        customResRow.style.display = this.value === 'custom' ? 'flex' : 'none';
+    });
+    fpsSelect.addEventListener('change', updateBlockSize);
+    sampleRateSelect.addEventListener('change', updateBlockSize);
+    convertBtn.addEventListener('click', convert);
+
+    updateBlockSize();
+    checkCrossOriginIsolated();
+
+    setTimeout(function () {
+        loadFFmpegUMD().catch(function () {});
+    }, 1200);
+
+    window.addEventListener('beforeunload', function () {
+        if (outputBlobUrl) URL.revokeObjectURL(outputBlobUrl);
+    });
+})();
+</script>
+</body>
+</html>
